@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gangwars 2.0</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <div class="game-container">
+        <div class="grids-container">
+            <div>
+                <button id="randomize-grid">Randomize Grid</button>
+                <h3>Player</h3>
+                <div id="player-grid" class="grid"></div>
+                <table id="player-stats-before" class="stats-table hidden"></table>
+                <table id="player-stats-after" class="stats-table hidden"></table>
+                <h3>Player Cards</h3>
+    <div id="card-container" class="card-container"></div>
+
+    <h3>Debuff Cards</h3>
+    <div id="debuff-container" class="debuff-container"></div>
+            </div>
+            
+            <div>
+                <div class="opponent-section"></div>
+                <h3 class="opponent-heading hidden">Opponent</h3>
+                <div id="opponent-grid" class="grid hidden"></div>
+                <table id="opponent-stats-before" class="stats-table hidden"></table>
+                <table id="opponent-stats-after" class="stats-table hidden"></table>
+            </div>
+        </div>
+        <div id="card-container" class="card-container"></div>
+        <div id="debuff-container" class="debuff-container"></div>
+        <div id="grid-info" class="hidden"></div>
+        <button id="start-battle" class="hidden">Start Battle</button>
+        <div id="battle-log" class="battle-log hidden" aria-live="polite"></div>
+        <button id="reset-game" class="hidden">Reset Game</button>
+<button id="show-analytics" class="hidden">Show Analytics</button>
+    </div>
+        
+    
+    <script src="scripts.js"></script>
+</body>
+
+</html>
+
+
