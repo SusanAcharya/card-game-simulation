@@ -14,6 +14,9 @@ const debuffContainer = document.getElementById('debuff-container');
 const gridInfo = document.getElementById('grid-info');
 const resetGameBtn = document.getElementById('reset-game');
 const showAnalyticsBtn = document.getElementById('show-analytics');
+const aboutBtn = document.getElementById('about-btn');
+const aboutDialog = document.getElementById('about-dialog');
+const closeAboutBtn = document.getElementById('close-about-btn');
 
 let gridEffects = [
     { health: 0.2, damage: -0.1, healing: -0.05, speed: 0.8 },
@@ -54,22 +57,101 @@ const typeSynergyBoosts = {
     'Dino': { health: 0.1, damage: 0.1, healing: 0.1, speed: 0 }
 };
 
+const eventCards = [{
+        name: "Poison Gas",
+        description: "At the start of each round, all cards' health will be reduced by 10 HP.",
+        image: "images/poison-gas.png",
+        effect: function(cards, round) {
+            cards.forEach(card => {
+                card.health = Math.max(card.health - 10, 0);
+            });
+            return "All cards lost 10 HP due to Poison Gas";
+        }
+    },
+    {
+        name: "Lucky Shot",
+        description: "At odd rounds (1, 3, 5, 7, 9, ...) one random card from either the player or opponent will deal 2x damage.",
+        image: "images/lucky-shot.png",
+        effect: function(cards, round) {
+            if (round % 2 === 1) {
+                const luckyCard = cards[Math.floor(Math.random() * cards.length)];
+                luckyCard.damage *= 2;
+                return `${luckyCard.owner} ${luckyCard.name} got a Lucky Shot and will deal 2x damage this round!`;
+            }
+            return "No Lucky Shot this round";
+        }
+    },
+    {
+        name: "Focus on One",
+        description: "In round 5, all the damage from one side will be focused on the card with the most health from the opposite side.",
+        image: "images/focus-on-one.png",
+        effect: function(cards, round) {
+            if (round === 5) {
+                const playerCards = cards.filter(card => card.owner === 'Player');
+                const opponentCards = cards.filter(card => card.owner === 'Opponent');
+                const playerTarget = playerCards.reduce((max, card) => card.health > max.health ? card : max, playerCards[0]);
+                const opponentTarget = opponentCards.reduce((max, card) => card.health > max.health ? card : max, opponentCards[0]);
+                playerCards.forEach(card => card.focusTarget = opponentTarget);
+                opponentCards.forEach(card => card.focusTarget = playerTarget);
+                return "All damage will be focused on the card with the most health from the opposite side this round";
+            }
+            return "No focus effect this round";
+        }
+    },
+    {
+        name: "Tactical Retreat",
+        description: "If at round 5, a character has less than 10% of its health before the battle, they will take cover and restore 10% HP, joining the battle in the next round.",
+        image: "images/tactical-retreat.png",
+        effect: function(cards, round) {
+            if (round === 5) {
+                cards.forEach(card => {
+                    if (card.health < card.initialHealth * 0.1) {
+                        card.isRetreating = true;
+                        card.health += card.initialHealth * 0.1;
+                        return `${card.owner} ${card.name} retreated and restored 10% HP`;
+                    }
+                });
+                return "Characters with less than 10% health have retreated";
+            } else if (round === 6) {
+                cards.forEach(card => {
+                    if (card.isRetreating) {
+                        card.isRetreating = false;
+                        return `${card.owner} ${card.name} has rejoined the battle`;
+                    }
+                });
+                return "Retreated characters have rejoined the battle";
+            }
+            return "No tactical retreat effect this round";
+        }
+
+    },
+    {
+        name: "Neutral",
+        description: "This event has no effect on the battle. The fight will proceed normally.",
+        image: "images/neutral.png", // Make sure to add this image to your images folder
+        effect: function(cards, round) {
+            return "No effect this round";
+        }
+    }
+];
+
 let playerCards = [];
 let opponentCards = [];
 let placedDebuffs = [];
 let opponentCardPositions = [];
 let analyticsDialog;
-
-
+let selectedEvent = null;
 
 function initializeGame() {
     createGrid(playerGrid, true);
     createGrid(opponentGrid, false);
     createCards();
     createDebuffCards();
+    createEventCards();
 
     // Add event listener to hide dialog box when clicking anywhere else
     document.addEventListener('click', hideDialogBox);
+    startBattleBtn.addEventListener('click', startBattle);
 }
 
 function getRandomEffect() {
@@ -147,6 +229,8 @@ function hideDialogBox() {
         existingDialog.remove();
     }
 }
+
+
 
 function randomizeGrid() {
     randomizeGridEffects();
@@ -282,6 +366,22 @@ function applyDebuffs() {
     updateStatsTable(opponentStatsAfterTable, opponentCards, 'after');
 }
 
+function setupAboutDialog() {
+    aboutBtn.onclick = function() {
+        aboutDialog.style.display = "block";
+    }
+
+    closeAboutBtn.onclick = function() {
+        aboutDialog.style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target == aboutDialog) {
+            aboutDialog.style.display = "none";
+        }
+    }
+}
+
 function updateCellContent(cell, cellIndex, cardName = '') {
     const gridEffect = gridEffects[cellIndex];
     const debuff = placedDebuffs.find(d => d.cellIndex === cellIndex);
@@ -308,6 +408,32 @@ function updateCellAppearance(cell) {
     } else if (hasDebuff) {
         cell.classList.add('debuff-placed');
     }
+}
+
+
+let selectedEventIndex = null;
+
+function selectEventCard(index) {
+    const cards = document.querySelectorAll('.event-card');
+    
+    if (selectedEventIndex === index) {
+        // If clicking the same card, deselect it
+        cards[index].classList.remove('selected');
+        selectedEventIndex = null;
+        selectedEvent = null;
+    } else {
+        // Deselect the previously selected card (if any)
+        if (selectedEventIndex !== null) {
+            cards[selectedEventIndex].classList.remove('selected');
+        }
+        
+        // Select the new card
+        cards[index].classList.add('selected');
+        selectedEventIndex = index;
+        selectedEvent = eventCards[index];
+    }
+
+    console.log("Selected event:", selectedEvent); // Add this line for debugging
 }
 
 function dropCard(e, isPlayer) {
@@ -523,7 +649,48 @@ function placeOpponentCards() {
     updateStatsTable(opponentStatsAfterTable, opponentCards, 'after');
 }
 
+function createEventCards() {
+    const eventContainer = document.getElementById('event-container');
+    eventCards.forEach((event, index) => {
+        const eventElement = document.createElement('div');
+        eventElement.classList.add('event-card');
+        eventElement.style.backgroundImage = `url(${event.image})`;
+        eventElement.style.backgroundSize = 'cover';
+        eventElement.style.backgroundPosition = 'center';
+
+        const eventName = document.createElement('div');
+        eventName.classList.add('event-name');
+        eventName.textContent = event.name;
+        eventElement.appendChild(eventName);
+
+        eventElement.addEventListener('click', () => selectEventCard(index));
+
+        // Add hover event listeners
+        eventElement.addEventListener('mouseover', (e) => {
+            const eventDetails = `
+                <h3>${event.name}</h3>
+                <p>${event.description}</p>
+            `;
+            showCardPopup(e, eventDetails);
+        });
+        eventElement.addEventListener('mouseout', hideCardPopup);
+
+        eventContainer.appendChild(eventElement);
+    });
+}
+
 async function startBattle() {
+    console.log("Battle started. Selected event:", selectedEvent); // Add this line for debugging
+
+    if (!selectedEvent) {
+        alert("Please select an event to continue");
+        return;
+    }
+
+    startBattleBtn.classList.add('hidden');
+    battleLog.classList.remove('hidden');
+    await logBattle('Battle starts!');
+
     startBattleBtn.classList.add('hidden');
     battleLog.classList.remove('hidden');
     await logBattle('Battle starts!');
@@ -533,43 +700,63 @@ async function startBattle() {
     let remainingOpponentCards = opponentCards.map(card => ({...card.after, owner: 'Opponent' }));
 
     // Log initial stats of each card before battle starts
-    for (const card of remainingPlayerCards) {
-        await logInitialCardStats(card, 'Player');
-    }
-    for (const card of remainingOpponentCards) {
-        await logInitialCardStats(card, 'Opponent');
-    }
+    await logAllCardStats(remainingPlayerCards, remainingOpponentCards);
 
     while (remainingPlayerCards.length > 0 && remainingOpponentCards.length > 0) {
         await logBattle(`Round ${round}`);
 
-        // Sort cards by speed (highest to lowest)
-        remainingPlayerCards.sort((a, b) => b.speed - a.speed);
-        remainingOpponentCards.sort((a, b) => b.speed - a.speed);
+        if (selectedEvent && selectedEvent.name !== "Neutral") {
+            const effectDescription = selectedEvent.effect([...remainingPlayerCards, ...remainingOpponentCards], round);
+            await logBattle(`Event: ${selectedEvent.name} activated - ${effectDescription}`);
+            
+            // Log the stats after applying the event effect
+            await logAllCardStats(remainingPlayerCards, remainingOpponentCards);
+        } else if (selectedEvent && selectedEvent.name === "Neutral") {
+            await logBattle("Neutral event: No effect this round");
+        }
 
-        // Player attacks
-        remainingPlayerCards = await battleRound(remainingPlayerCards, remainingOpponentCards, 'Player');
+        // Apply event effect at the start of the round if an event is selected
+        if (selectedEvent) {
+            const effectDescription = selectedEvent.effect([...remainingPlayerCards, ...remainingOpponentCards], round);
+            await logBattle(`Event: ${selectedEvent.name} activated - ${effectDescription}`);
+            
+            // Log the stats after applying the event effect
+            await logAllCardStats(remainingPlayerCards, remainingOpponentCards);
+        }
 
-        // Opponent attacks
-        remainingOpponentCards = await battleRound(remainingOpponentCards, remainingPlayerCards, 'Opponent');
+            // Sort cards by speed (highest to lowest)
+            remainingPlayerCards.sort((a, b) => b.speed - a.speed);
+            remainingOpponentCards.sort((a, b) => b.speed - a.speed);
 
-        // Filter out defeated cards
-        remainingPlayerCards = remainingPlayerCards.filter(card => card.health > 0);
-        remainingOpponentCards = remainingOpponentCards.filter(card => card.health > 0);
+            // Player attacks
+            remainingPlayerCards = await battleRound(remainingPlayerCards, remainingOpponentCards, 'Player', round);
 
-        round++;
+            // Opponent attacks
+            remainingOpponentCards = await battleRound(remainingOpponentCards, remainingPlayerCards, 'Opponent', round);
+
+            // Filter out defeated cards
+            remainingPlayerCards = remainingPlayerCards.filter(card => card.health > 0);
+            remainingOpponentCards = remainingOpponentCards.filter(card => card.health > 0);
+
+            // Apply healing surge effect after the round if it's the selected event
+            if (selectedEvent && selectedEvent.name === "Healing Surge") {
+    const effectDescription = selectedEvent.effect([...remainingPlayerCards, ...remainingOpponentCards]);
+    await logBattle(`Healing Surge activated: ${effectDescription}`);
+    
+    // Log the stats after applying the healing surge
+    await logAllCardStats(remainingPlayerCards, remainingOpponentCards);
+}
+
+            round++;
+        }
 
         const winner = remainingPlayerCards.length > 0 ? 'Player' : 'Opponent';
-    await logBattle(`${winner} wins the battle!`);
+        await logBattle(`${winner} wins the battle!`);
 
-    // Show reset and analytics buttons
-    resetGameBtn.classList.remove('hidden');
-    showAnalyticsBtn.classList.remove('hidden');
+        // Show reset and analytics buttons
+        resetGameBtn.classList.remove('hidden');
+        showAnalyticsBtn.classList.remove('hidden');
     }
-
-    const winner = remainingPlayerCards.length > 0 ? 'Player' : 'Opponent';
-    await logBattle(`${winner} wins the battle!`);
-}
 
 
 function logAttack(attacker, defender) {
@@ -593,7 +780,7 @@ function logBattle(message) {
             battleLog.appendChild(logEntry);
             battleLog.scrollTop = battleLog.scrollHeight;
             resolve();
-        }, 100);
+        }, 10);``
     });
 }
 
@@ -601,12 +788,31 @@ async function logInitialCardStats(card, owner) {
     await logBattle(`${owner} ${card.name} - Health: ${card.health.toFixed(2)}, Damage: ${card.damage.toFixed(2)}, Healing: ${card.healing.toFixed(2)}, Speed: ${card.speed.toFixed(2)}`);
 }
 
-async function battleRound(attackers, defenders, owner) {
+async function battleRound(attackers, defenders, owner, round) {
     for (const attacker of attackers) {
         if (defenders.length === 0) break;
+        if (attacker.isRetreating) {
+            await logBattle(`${attacker.owner} ${attacker.name} is taking cover and healing`);
+            continue;
+        }
 
-        const defender = defenders[Math.floor(Math.random() * defenders.length)];
-        await logAttack(attacker, defender);
+        let defender;
+        if (round === 5 && attacker.focusTarget) {
+            defender = attacker.focusTarget;
+        } else {
+            defender = defenders[Math.floor(Math.random() * defenders.length)];
+        }
+
+        let damage = attacker.damage;
+        if (round % 2 === 1 && attacker.damage === attacker.initialDamage * 2) {
+            await logBattle(`${attacker.owner} ${attacker.name} is using their Lucky Shot!`);
+            damage = attacker.damage;
+            attacker.damage = attacker.initialDamage; // Reset damage after use
+        }
+
+        defender.health -= damage;
+        await logBattle(`${attacker.owner} ${attacker.name} attacks ${defender.owner} ${defender.name}`);
+        await logBattle(`${defender.owner} ${defender.name} takes ${damage.toFixed(2)} damage, health is now ${defender.health.toFixed(2)}`);
 
         if (defender.health <= 0) {
             await logBattle(`${defender.owner} ${defender.name} is defeated!`);
@@ -626,6 +832,16 @@ function logAttack(attacker, defender) {
 
 function logHeal(card, owner) {
     logBattle(`${owner} ${card.name} heals for ${card.healing.toFixed(2)}, health is now ${card.health.toFixed(2)}`);
+}
+
+async function logAllCardStats(playerCards, opponentCards) {
+    await logBattle("Current stats:");
+    for (const card of playerCards) {
+        await logBattle(`Player ${card.name} - Health: ${card.health.toFixed(2)}, Damage: ${card.damage.toFixed(2)}, Healing: ${card.healing.toFixed(2)}, Speed: ${card.speed.toFixed(2)}`);
+    }
+    for (const card of opponentCards) {
+        await logBattle(`Opponent ${card.name} - Health: ${card.health.toFixed(2)}, Damage: ${card.damage.toFixed(2)}, Healing: ${card.healing.toFixed(2)}, Speed: ${card.speed.toFixed(2)}`);
+    }
 }
 
 // Add this function to reset the game
@@ -825,4 +1041,5 @@ resetGameBtn.addEventListener('click', resetGame);
 showAnalyticsBtn.addEventListener('click', showAnalytics);
 document.addEventListener('DOMContentLoaded', () => {
     initializeGame();
+    setupAboutDialog();
 });

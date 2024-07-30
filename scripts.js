@@ -135,6 +135,7 @@ const eventCards = [{
     }
 ];
 
+
 let playerCards = [];
 let opponentCards = [];
 let placedDebuffs = [];
