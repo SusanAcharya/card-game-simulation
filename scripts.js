@@ -780,7 +780,7 @@ function logBattle(message) {
             battleLog.appendChild(logEntry);
             battleLog.scrollTop = battleLog.scrollHeight;
             resolve();
-        }, 10);
+        }, 10);``
     });
 }
 

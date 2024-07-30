@@ -14,6 +14,9 @@ const debuffContainer = document.getElementById('debuff-container');
 const gridInfo = document.getElementById('grid-info');
 const resetGameBtn = document.getElementById('reset-game');
 const showAnalyticsBtn = document.getElementById('show-analytics');
+const aboutBtn = document.getElementById('about-btn');
+const aboutDialog = document.getElementById('about-dialog');
+const closeAboutBtn = document.getElementById('close-about-btn');
 
 let gridEffects = [
     { health: 0.2, damage: -0.1, healing: -0.05, speed: 0.8 },
@@ -120,6 +123,15 @@ const eventCards = [{
             }
             return "No tactical retreat effect this round";
         }
+
+    },
+    {
+        name: "Neutral",
+        description: "This event has no effect on the battle. The fight will proceed normally.",
+        image: "images/neutral.png", // Make sure to add this image to your images folder
+        effect: function(cards, round) {
+            return "No effect this round";
+        }
     }
 ];
 
@@ -128,6 +140,7 @@ let opponentCards = [];
 let placedDebuffs = [];
 let opponentCardPositions = [];
 let analyticsDialog;
+let selectedEvent = null;
 
 function initializeGame() {
     createGrid(playerGrid, true);
@@ -138,6 +151,7 @@ function initializeGame() {
 
     // Add event listener to hide dialog box when clicking anywhere else
     document.addEventListener('click', hideDialogBox);
+    startBattleBtn.addEventListener('click', startBattle);
 }
 
 function getRandomEffect() {
@@ -352,6 +366,22 @@ function applyDebuffs() {
     updateStatsTable(opponentStatsAfterTable, opponentCards, 'after');
 }
 
+function setupAboutDialog() {
+    aboutBtn.onclick = function() {
+        aboutDialog.style.display = "block";
+    }
+
+    closeAboutBtn.onclick = function() {
+        aboutDialog.style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target == aboutDialog) {
+            aboutDialog.style.display = "none";
+        }
+    }
+}
+
 function updateCellContent(cell, cellIndex, cardName = '') {
     const gridEffect = gridEffects[cellIndex];
     const debuff = placedDebuffs.find(d => d.cellIndex === cellIndex);
@@ -402,6 +432,8 @@ function selectEventCard(index) {
         selectedEventIndex = index;
         selectedEvent = eventCards[index];
     }
+
+    console.log("Selected event:", selectedEvent); // Add this line for debugging
 }
 
 function dropCard(e, isPlayer) {
@@ -648,10 +680,16 @@ function createEventCards() {
 }
 
 async function startBattle() {
+    console.log("Battle started. Selected event:", selectedEvent); // Add this line for debugging
+
     if (!selectedEvent) {
-        alert("Please select an event before starting the battle.");
+        alert("Please select an event to continue");
         return;
     }
+
+    startBattleBtn.classList.add('hidden');
+    battleLog.classList.remove('hidden');
+    await logBattle('Battle starts!');
 
     startBattleBtn.classList.add('hidden');
     battleLog.classList.remove('hidden');
@@ -664,17 +702,27 @@ async function startBattle() {
     // Log initial stats of each card before battle starts
     await logAllCardStats(remainingPlayerCards, remainingOpponentCards);
 
-        while (remainingPlayerCards.length > 0 && remainingOpponentCards.length > 0) {
-            await logBattle(`Round ${round}`);
+    while (remainingPlayerCards.length > 0 && remainingOpponentCards.length > 0) {
+        await logBattle(`Round ${round}`);
 
-            // Apply event effect at the start of the round
-            if (selectedEvent) {
-                const effectDescription = selectedEvent.effect([...remainingPlayerCards, ...remainingOpponentCards], round);
-                await logBattle(`Event: ${selectedEvent.name} activated - ${effectDescription}`);
-                
-                // Log the stats after applying the event effect
-                await logAllCardStats(remainingPlayerCards, remainingOpponentCards);
-            }
+        if (selectedEvent && selectedEvent.name !== "Neutral") {
+            const effectDescription = selectedEvent.effect([...remainingPlayerCards, ...remainingOpponentCards], round);
+            await logBattle(`Event: ${selectedEvent.name} activated - ${effectDescription}`);
+            
+            // Log the stats after applying the event effect
+            await logAllCardStats(remainingPlayerCards, remainingOpponentCards);
+        } else if (selectedEvent && selectedEvent.name === "Neutral") {
+            await logBattle("Neutral event: No effect this round");
+        }
+
+        // Apply event effect at the start of the round if an event is selected
+        if (selectedEvent) {
+            const effectDescription = selectedEvent.effect([...remainingPlayerCards, ...remainingOpponentCards], round);
+            await logBattle(`Event: ${selectedEvent.name} activated - ${effectDescription}`);
+            
+            // Log the stats after applying the event effect
+            await logAllCardStats(remainingPlayerCards, remainingOpponentCards);
+        }
 
             // Sort cards by speed (highest to lowest)
             remainingPlayerCards.sort((a, b) => b.speed - a.speed);
@@ -732,7 +780,7 @@ function logBattle(message) {
             battleLog.appendChild(logEntry);
             battleLog.scrollTop = battleLog.scrollHeight;
             resolve();
-        }, 10);
+        }, 10);``
     });
 }
 
@@ -993,4 +1041,5 @@ resetGameBtn.addEventListener('click', resetGame);
 showAnalyticsBtn.addEventListener('click', showAnalytics);
 document.addEventListener('DOMContentLoaded', () => {
     initializeGame();
+    setupAboutDialog();
 });
